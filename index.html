@@ -38,6 +38,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Top Header */
     .header {
       max-width: 100%;
       margin: 0 0 12px 0;
@@ -67,6 +68,7 @@
       margin-top: 1px;
     }
 
+    /* Current Day Display */
     .current-day-badge {
       background: linear-gradient(135deg, var(--sky-blue), #0369a1);
       color: white;
@@ -217,7 +219,9 @@
       transition: all 0.15s ease;
     }
 
-    .btn-action:hover { background-color: #0369a1; }
+    .btn-action:hover {
+      background-color: #0369a1;
+    }
 
     .btn-save {
       background-color: var(--gold-accent);
@@ -227,6 +231,7 @@
 
     .btn-save:hover { background-color: #b45309; }
 
+    /* Multiple Accounts Section */
     .multi-accounts-bar {
       background: var(--card-bg);
       padding: 10px 16px;
@@ -236,7 +241,9 @@
       display: none;
     }
 
-    .multi-accounts-bar.visible { display: block; }
+    .multi-accounts-bar.visible {
+      display: block;
+    }
 
     .accounts-list {
       display: flex;
@@ -275,7 +282,9 @@
       padding: 0 2px;
     }
 
-    .account-chip button:hover { color: #ef4444; }
+    .account-chip button:hover {
+      color: #ef4444;
+    }
 
     .add-account-btn {
       background: transparent;
@@ -293,6 +302,7 @@
       color: var(--sky-blue);
     }
 
+    /* Group Bar */
     .group-tabs-bar {
       display: flex;
       align-items: center;
@@ -343,6 +353,7 @@
     .group-tab-wrapper.active .group-delete-btn { color: #ffffff; }
     .group-delete-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 
+    /* Grid Layout: 5 tables per row on 1080p */
     .tables-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -355,6 +366,7 @@
     @media (max-width: 900px) { .tables-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 600px) { .tables-grid { grid-template-columns: 1fr; } }
 
+    /* Card Styling */
     .table-card {
       background: var(--card-bg);
       border-radius: 8px;
@@ -425,20 +437,6 @@
       color: #0369a1;
       background: #f0f9ff;
       border: 1px solid var(--sky-border);
-    }
-
-    .combined-tag {
-      font-size: 0.62rem;
-      font-weight: 600;
-      color: #0369a1;
-      background: var(--sky-light);
-      border: 1px solid var(--sky-border);
-      padding: 1px 4px;
-      border-radius: 4px;
-      display: none;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .btn-delete {
@@ -537,6 +535,7 @@
       word-break: break-all;
     }
 
+    /* Debug Column */
     .debug-col { display: none; }
     body.show-debug .debug-col { display: table-cell; }
 
@@ -553,6 +552,7 @@
       white-space: pre-wrap;
     }
 
+    /* Profile indicator */
     .profile-indicator {
       font-size: 0.7rem;
       color: var(--text-muted);
@@ -618,49 +618,72 @@
   <div class="tables-grid" id="tablesContainer"></div>
 
   <script>
-    const MASTER_BIN_ID = '6a82a4c5da38895dfeeda0a4';
-    const API_KEY = '$2a$10$EUDuaRGXs5.vJOxYQg3JOeLrbQxtCkfj7O35Vl.0Lj46HEvKY9FDW';
-    const BASE_URL = 'https://api.jsonbin.io/v3/b/' + MASTER_BIN_ID;
+    const MASTER_BIN_ID = '6a82a4c5da38895dfeeda0a4'; 
+    const API_KEY = '$2a$10$EUDuaRGXs5.vJOxYQg3JOeLrbQxtCkfj7O35Vl.0Lj46HEvKY9FDW'; 
+    const BASE_URL = `https://api.jsonbin.io/v3/b/${MASTER_BIN_ID}`;
 
     let tableCounter = 0;
-    let registeredGroups = new Set();
+    let registeredGroups = new Set(["DEFAULT"]);
     let activeGroupTab = "ALL";
+    
     let activeProfiles = new Map();
     let currentProfileId = null;
-    let autoSaveTimeout = null;
 
-    const DAY_OPTIONS = ["Everyday", "Mon/Thu/Sun", "Tue/Fri/Sun", "Wed/Sat/Sun"];
+    const DAY_OPTIONS = [
+      "Everyday",
+      "Mon/Thu/Sun",
+      "Tue/Fri/Sun",
+      "Wed/Sat/Sun"
+    ];
 
     const DAY_MAPPING = {
-      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
-      'Thursday': 4, 'Friday': 5, 'Saturday': 6
+      'Sunday': 0,
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6
     };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateCurrentDayDisplay();
+      renderGroupTabs();
+    });
 
     function updateCurrentDayDisplay() {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const today = new Date();
       const dayName = days[today.getDay()];
       const badge = document.getElementById('currentDayBadge');
-      badge.textContent = 'Today: ' + dayName;
+      badge.textContent = `Today: ${dayName}`;
+      
       badge.classList.add('today-highlight');
-      setTimeout(function() { badge.classList.remove('today-highlight'); }, 2000);
+      setTimeout(() => badge.classList.remove('today-highlight'), 2000);
+      
       autoFilterTodaysSchedule(dayName);
     }
 
     function autoFilterTodaysSchedule(dayName) {
+      const dayFilter = document.getElementById('dayFilterSelect');
       const dayIndex = DAY_MAPPING[dayName];
       let schedulePattern = 'Everyday';
+      
       if (dayIndex === 0) schedulePattern = 'Everyday';
       else if ([1, 4, 0].includes(dayIndex)) schedulePattern = 'Mon/Thu/Sun';
       else if ([2, 5, 0].includes(dayIndex)) schedulePattern = 'Tue/Fri/Sun';
       else if ([3, 6, 0].includes(dayIndex)) schedulePattern = 'Wed/Sat/Sun';
-      highlightTodaysTables(schedulePattern);
+      
+      if (dayFilter.value === 'TODAY' || dayFilter.value === 'ALL') {
+        highlightTodaysTables(schedulePattern);
+      }
     }
 
     function highlightTodaysTables(schedulePattern) {
-      document.querySelectorAll('.table-card').forEach(function(card) {
+      document.querySelectorAll('.table-card').forEach(card => {
         const cardDay = card.getAttribute('data-day') || 'Everyday';
         const isRelevant = (cardDay === 'Everyday' || cardDay === schedulePattern);
+        
         if (isRelevant) {
           card.classList.add('today-relevant');
         } else {
@@ -674,626 +697,395 @@
       document.body.classList.toggle('show-debug', isChecked);
     }
 
-    function createTableHTML(id, materialName, selectedGroup, selectedDay, profileId) {
-      const dayVal = selectedDay || "Everyday";
-      const profileIndicator = profileId ? '<div class="profile-indicator">Profile: ' + profileId + '</div>' : '';
-      const deleteBtn = '<button class="btn-delete" title="Remove Table" onclick="removeTable(' + id + ')">X</button>';
-      
-      let dayOptionsHTML = '';
-      DAY_OPTIONS.forEach(function(d) {
-        const selected = d === dayVal ? 'selected' : '';
-        dayOptionsHTML += '<option value="' + d + '" ' + selected + '>' + d + '</option>';
-      });
-
-      let groupOptionsHTML = renderGroupOptions(selectedGroup);
-
-      let rowsHTML = '';
-      for (let idx = 0; idx < 4; idx++) {
-        let neededHTML = '';
-        if (idx === 0) {
-          neededHTML = '<input type="number" value="0" class="needed-input" oninput="triggerRecalculation(' + id + ')">';
-        } else {
-          neededHTML = '<span class="needed-total">0</span><div class="sub-input"><span>+</span><input type="number" value="0" class="needed-input" oninput="triggerRecalculation(' + id + ')"></div>';
-        }
-        rowsHTML += '<tr>' +
-          '<td><input type="number" value="0" class="have" oninput="triggerRecalculation(' + id + ')"></td>' +
-          '<td><div class="needed-wrapper">' + neededHTML + '</div></td>' +
-          '<td><span class="left-needed-badge left-needed">0</span></td>' +
-          '<td class="debug-col"><div class="debug-box debug"></div></td>' +
-          '</tr>';
-      }
-
-      return '<div class="table-card" id="card-' + id + '" data-material="' + materialName.toLowerCase() + '" data-group="' + selectedGroup + '" data-day="' + dayVal + '" data-profile="' + (profileId || 'default') + '">' +
-        '<div class="card-header">' +
-          '<div style="flex: 1;">' +
-            '<input type="text" class="card-title-input" value="' + materialName + '" placeholder="Material Name..." oninput="onMaterialNameChange(' + id + ')">' +
-            profileIndicator +
-          '</div>' +
-          deleteBtn +
-        '</div>' +
-        '<div class="card-sub-bar">' +
-          '<select class="card-group-select" onchange="onCardGroupChange(' + id + ', this)">' + groupOptionsHTML + '</select>' +
-          '<select class="card-day-select" onchange="onCardDayChange(' + id + ', this)">' + dayOptionsHTML + '</select>' +
-        '</div>' +
-        '<div class="combined-tag" id="combined-tag-' + id + '"></div>' +
-        '<table><thead><tr><th>Have</th><th>Needed</th><th>Left</th><th class="debug-col">Logic</th></tr></thead>' +
-        '<tbody>' + rowsHTML + '</tbody></table>' +
-      '</div>';
-    }
-
-    function renderGroupOptions(currentGroup) {
-      let html = '';
-      registeredGroups.forEach(function(g) {
-        const selected = g === currentGroup ? 'selected' : '';
-        html += '<option value="' + g + '" ' + selected + '>' + g + '</option>';
-      });
-      html += '<option value="__NEW__">+ New Group...</option>';
-      return html;
-    }
-
-    function updateAllCardGroupDropdowns() {
-      document.querySelectorAll('.table-card').forEach(function(card) {
-        const select = card.querySelector('.card-group-select');
-        const currentGroup = card.getAttribute('data-group');
-        select.innerHTML = renderGroupOptions(currentGroup);
-      });
-    }
-
-    function addTable(materialName, groupName, dayName, profileId) {
-      tableCounter++;
-      const name = materialName || 'Material #' + tableCounter;
-      
-      let group = groupName;
-      if (!group) {
-        if (registeredGroups.size === 0) {
-          group = "Group 1";
-          registeredGroups.add(group);
-        } else {
-          group = Array.from(registeredGroups)[0];
-        }
-      } else {
-        registeredGroups.add(group);
-      }
-      
-      renderGroupTabs();
-
-      const container = document.getElementById('tablesContainer');
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = createTableHTML(tableCounter, name, group, dayName || "Everyday", profileId);
-      const cardElement = wrapper.firstElementChild;
-      
-      container.appendChild(cardElement);
-      updateAllCardGroupDropdowns();
-      recalculateAllSameMaterials(name.toLowerCase());
-      recalculateAllTables();
-      filterTables();
-      
-      return tableCounter;
-    }
-
-    function removeTable(id) {
-      const card = document.getElementById('card-' + id);
-      if (card) {
-        const materialKey = card.getAttribute('data-material');
-        const profileId = card.getAttribute('data-profile');
-        card.remove();
-        recalculateAllSameMaterials(materialKey);
-        recalculateAllTables();
-        if (profileId && activeProfiles.has(profileId)) {
-          updateProfileData(profileId);
-          debounceAutoSave(profileId);
-        }
-      }
-    }
-
-    function triggerRecalculation(id) {
-      const card = document.getElementById('card-' + id);
-      if (!card) return;
-      const materialKey = card.getAttribute('data-material');
-      const profileId = card.getAttribute('data-profile');
-      recalculateAllSameMaterials(materialKey);
-      if (profileId && activeProfiles.has(profileId)) {
-        updateProfileData(profileId);
-        debounceAutoSave(profileId);
-      } else if (currentProfileId) {
-        debounceAutoSave(currentProfileId);
-      }
-    }
-
-    function debounceAutoSave(profileId) {
-      clearTimeout(autoSaveTimeout);
-      autoSaveTimeout = setTimeout(function() {
-        saveSingleProfile(profileId).catch(console.error);
-      }, 1000);
-    }
-
-    function onCardGroupChange(id, selectEl) {
-      const card = document.getElementById('card-' + id);
-      let selectedValue = selectEl.value;
-
-      if (selectedValue === '__NEW__') {
-        const newGroup = prompt("Enter new Group Name:");
-        if (newGroup && newGroup.trim()) {
-          selectedValue = newGroup.trim();
-          registeredGroups.add(selectedValue);
-          renderGroupTabs();
-          updateAllCardGroupDropdowns();
-        } else {
-          selectedValue = card.getAttribute('data-group');
-          selectEl.value = selectedValue;
-          return;
-        }
-      }
-
-      card.setAttribute('data-group', selectedValue);
-      selectEl.value = selectedValue;
-      
-      const materialKey = card.getAttribute('data-material');
-      recalculateAllSameMaterials(materialKey);
-      filterTables();
-      
-      const profileId = card.getAttribute('data-profile');
-      if (profileId && activeProfiles.has(profileId)) {
-        updateProfileData(profileId);
-        debounceAutoSave(profileId);
-      } else if (currentProfileId) {
-        debounceAutoSave(currentProfileId);
-      }
-    }
-
-    function onCardDayChange(id, selectEl) {
-      const card = document.getElementById('card-' + id);
-      card.setAttribute('data-day', selectEl.value);
-      filterTables();
-      const profileId = card.getAttribute('data-profile');
-      if (profileId && activeProfiles.has(profileId)) {
-        updateProfileData(profileId);
-        debounceAutoSave(profileId);
-      } else if (currentProfileId) {
-        debounceAutoSave(currentProfileId);
-      }
-    }
-
-    function onMaterialNameChange(id) {
-      const card = document.getElementById('card-' + id);
-      const newName = card.querySelector('.card-title-input').value.trim().toLowerCase();
-      const oldName = card.getAttribute('data-material');
-      card.setAttribute('data-material', newName);
-      recalculateAllSameMaterials(oldName);
-      recalculateAllSameMaterials(newName);
-    }
-
-    function recalculateAllTables() {
-      const uniqueMaterials = new Set();
-      document.querySelectorAll('.table-card').forEach(function(card) {
-        uniqueMaterials.add(card.getAttribute('data-material'));
-      });
-      uniqueMaterials.forEach(function(m) { recalculateAllSameMaterials(m); });
-    }
-
-    function recalculateAllSameMaterials(materialKey) {
-      if (!materialKey) return;
-
-      const matchingCards = Array.from(document.querySelectorAll('.table-card'))
-        .filter(function(card) { return card.getAttribute('data-material') === materialKey; });
-
-      if (matchingCards.length === 0) return;
-
-      const contributingGroups = Array.from(new Set(matchingCards.map(function(c) { return c.getAttribute('data-group'); })));
-      const isMultiGroup = contributingGroups.length > 1;
-      const combinedLabelText = isMultiGroup ? 'Combined: ' + contributingGroups.join(' + ') : '';
-
-      matchingCards.forEach(function(card) {
-        const tagEl = card.querySelector('.combined-tag');
-        if (tagEl) {
-          if (isMultiGroup) {
-            tagEl.textContent = combinedLabelText;
-            tagEl.style.display = 'inline-block';
-          } else {
-            tagEl.style.display = 'none';
-          }
-        }
-      });
-
-      let prevLeftNeeded = 0;
-
-      for (let rowIndex = 0; rowIndex < 4; rowIndex++) {
-        let sumHave = 0;
-        let sumUserInputNeeded = 0;
-
-        matchingCards.forEach(function(card) {
-          const rows = card.querySelectorAll('tbody tr');
-          const row = rows[rowIndex];
-          if (!row) return;
-
-          const haveInput = row.querySelector('.have');
-          const neededInput = row.querySelector('.needed-input');
-
-          const haveVal = haveInput.value === '' ? 0 : parseFloat(haveInput.value);
-          const neededVal = neededInput.value === '' ? 0 : parseFloat(neededInput.value);
-
-          sumHave += isNaN(haveVal) ? 0 : haveVal;
-          sumUserInputNeeded += isNaN(neededVal) ? 0 : neededVal;
-        });
-
-        let rowTotalNeeded = 0;
-        let debugFormula = "";
-
-        if (rowIndex === 0) {
-          rowTotalNeeded = sumUserInputNeeded;
-          debugFormula = 'Needed = Input (' + sumUserInputNeeded + ')';
-        } else {
-          rowTotalNeeded = (prevLeftNeeded * 3) + sumUserInputNeeded;
-          debugFormula = 'Needed = (' + prevLeftNeeded + ' x 3) + (' + sumUserInputNeeded + ') = ' + rowTotalNeeded;
-        }
-
-        const rowLeftNeeded = rowTotalNeeded - sumHave;
-        debugFormula += '\nLeft = ' + rowTotalNeeded + ' - (' + sumHave + ') = ' + rowLeftNeeded;
-
-        matchingCards.forEach(function(card) {
-          const rows = card.querySelectorAll('tbody tr');
-          const row = rows[rowIndex];
-          if (!row) return;
-
-          if (rowIndex > 0) {
-            const totalEl = row.querySelector('.needed-total');
-            if (totalEl) totalEl.textContent = rowTotalNeeded;
-          }
-          const leftEl = row.querySelector('.left-needed');
-          if (leftEl) leftEl.textContent = rowLeftNeeded;
-
-          const debugEl = row.querySelector('.debug');
-          if (debugEl) debugEl.textContent = debugFormula;
-        });
-
-        prevLeftNeeded = rowLeftNeeded;
-      }
+    function renderGroupOptions(selectedGroup) {
+      return Array.from(registeredGroups).map(group => 
+        `<option value="${group}" ${group === selectedGroup ? 'selected' : ''}>${group}</option>`
+      ).join('');
     }
 
     function renderGroupTabs() {
       const container = document.getElementById('groupTabsContainer');
-      container.innerHTML = '<div class="group-tab-wrapper ' + (activeGroupTab === 'ALL' ? 'active' : '') + '">' +
-        '<button class="group-tab-btn" onclick="switchGroupTab(\'ALL\')">All Materials</button></div>';
+      let html = `
+        <div class="group-tab-wrapper ${activeGroupTab === 'ALL' ? 'active' : ''}">
+          <button class="group-tab-btn" onclick="selectGroupTab('ALL')">ALL</button>
+        </div>`;
       
-      registeredGroups.forEach(function(group) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'group-tab-wrapper ' + (activeGroupTab === group ? 'active' : '');
-        wrapper.innerHTML = '<button class="group-tab-btn" onclick="switchGroupTab(\'' + group + '\')">' + group + '</button>' +
-          '<button class="group-delete-btn" title="Delete Group" onclick="deleteGroup(\'' + group + '\')">X</button>';
-        container.appendChild(wrapper);
+      registeredGroups.forEach(group => {
+        html += `
+          <div class="group-tab-wrapper ${activeGroupTab === group ? 'active' : ''}">
+            <button class="group-tab-btn" onclick="selectGroupTab('${group}')">${group}</button>
+            ${group !== 'DEFAULT' ? `<button class="group-delete-btn" onclick="deleteGroup('${group}')">×</button>` : ''}
+          </div>`;
       });
+
+      html += `<button class="add-account-btn" onclick="addNewGroup()">+ New Group</button>`;
+      container.innerHTML = html;
     }
 
-    function switchGroupTab(groupName) {
-      activeGroupTab = groupName;
+    function selectGroupTab(group) {
+      activeGroupTab = group;
       renderGroupTabs();
       filterTables();
     }
 
-    function deleteGroup(groupName) {
-      if (confirm('Delete group "' + groupName + '"? Tables in this group will also be removed.')) {
-        registeredGroups.delete(groupName);
-        document.querySelectorAll('.table-card[data-group="' + groupName + '"]').forEach(function(card) {
-          const id = card.id.replace('card-', '');
-          removeTable(id);
-        });
-        if (activeGroupTab === groupName) activeGroupTab = 'ALL';
+    function addNewGroup() {
+      const name = prompt("Enter new Group Name:");
+      if (!name) return;
+      const cleanName = name.trim().toUpperCase();
+      if (cleanName) {
+        registeredGroups.add(cleanName);
         renderGroupTabs();
-        updateAllCardGroupDropdowns();
-        filterTables();
+        updateAllGroupDropdowns();
       }
     }
 
-    function filterTables() {
-      const filterText = document.getElementById('materialFilterInput').value.toLowerCase().trim();
-      const selectedDayFilter = document.getElementById('dayFilterSelect').value;
-      const cards = document.querySelectorAll('.table-card');
+    function deleteGroup(group) {
+      if (group === 'DEFAULT') return;
+      registeredGroups.delete(group);
+      if (activeGroupTab === group) activeGroupTab = "ALL";
+      renderGroupTabs();
+      updateAllGroupDropdowns();
+      filterTables();
+    }
 
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const today = new Date();
-      const dayName = days[today.getDay()];
-      const dayIndex = DAY_MAPPING[dayName];
+    function updateAllGroupDropdowns() {
+      document.querySelectorAll('.card-group-select').forEach(select => {
+        const currentVal = select.value;
+        select.innerHTML = renderGroupOptions(currentVal);
+        if (!registeredGroups.has(currentVal)) {
+          select.value = "DEFAULT";
+          const cardId = select.closest('.table-card').id.replace('card-', '');
+          onCardGroupChange(cardId, select);
+        }
+      });
+    }
+
+    function createTableHTML(id, materialName, selectedGroup, selectedDay, profileId = null) {
+      const dayVal = selectedDay || "Everyday";
+      const profileIndicator = profileId ? `<div class="profile-indicator">Profile: ${profileId}</div>` : '';
       
-      let todaySchedulePattern = 'Everyday';
-      if (dayIndex === 0) todaySchedulePattern = 'Everyday';
-      else if ([1, 4, 0].includes(dayIndex)) todaySchedulePattern = 'Mon/Thu/Sun';
-      else if ([2, 5, 0].includes(dayIndex)) todaySchedulePattern = 'Tue/Fri/Sun';
-      else if ([3, 6, 0].includes(dayIndex)) todaySchedulePattern = 'Wed/Sat/Sun';
+      return `
+        <div class="table-card" id="card-${id}" data-material="${materialName.toLowerCase()}" data-group="${selectedGroup}" data-day="${dayVal}" data-profile="${profileId || 'default'}">
+          <div class="card-header">
+            <div style="flex: 1;">
+              <input type="text" class="card-title-input" value="${materialName}" placeholder="Material Name..." oninput="onMaterialNameChange(${id})">
+              ${profileIndicator}
+            </div>
+            <button class="btn-delete" title="Remove Table" onclick="removeTable(${id})">×</button>
+          </div>
+          <div class="card-sub-bar">
+            <select class="card-group-select" onchange="onCardGroupChange(${id}, this)">
+              ${renderGroupOptions(selectedGroup)}
+            </select>
+            <select class="card-day-select" onchange="onCardDayChange(${id}, this)">
+              ${DAY_OPTIONS.map(d => `<option value="${d}" ${d === dayVal ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Have</th>
+                <th>Need</th>
+                <th>Left</th>
+                <th class="debug-col">Debug</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[3, 2, 1].map(tier => `
+                <tr data-tier="${tier}">
+                  <td><strong>T${tier}</strong></td>
+                  <td><input type="number" min="0" value="0" class="have-input" oninput="calculateCard(${id})"></td>
+                  <td>
+                    <div class="needed-wrapper">
+                      <span class="needed-total" id="needed-total-${id}-${tier}">0</span>
+                      <div class="sub-input">
+                        +<input type="number" min="0" value="0" class="craft-input" oninput="calculateCard(${id})">
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="left-needed-badge" id="left-${id}-${tier}">0</span></td>
+                  <td class="debug-col"><div class="debug-box" id="debug-${id}-${tier}">-</div></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
 
-      cards.forEach(function(card) {
-        const material = card.getAttribute('data-material');
-        const group = card.getAttribute('data-group');
-        const day = card.getAttribute('data-day') || "Everyday";
+    function addTable(materialName = "New Material", group = "DEFAULT", day = "Everyday", profileId = null) {
+      tableCounter++;
+      const id = tableCounter;
+      const container = document.getElementById('tablesContainer');
+      container.insertAdjacentHTML('beforeend', createTableHTML(id, materialName, group, day, profileId || currentProfileId));
+      calculateCard(id);
+      filterTables();
+    }
 
-        const matchesGroup = (activeGroupTab === 'ALL' || group === activeGroupTab);
-        const matchesText = (filterText === '' || material.includes(filterText));
-        
-        let matchesDay = true;
-        if (selectedDayFilter === 'TODAY') {
-          matchesDay = (day === 'Everyday' || day === todaySchedulePattern);
-        } else if (selectedDayFilter !== 'ALL') {
-          matchesDay = (day === selectedDayFilter);
+    function removeTable(id) {
+      const card = document.getElementById(`card-${id}`);
+      if (card) card.remove();
+    }
+
+    function onMaterialNameChange(id) {
+      const card = document.getElementById(`card-${id}`);
+      const title = card.querySelector('.card-title-input').value;
+      card.setAttribute('data-material', title.toLowerCase());
+      filterTables();
+    }
+
+    function onCardGroupChange(id, select) {
+      const card = document.getElementById(`card-${id}`);
+      card.setAttribute('data-group', select.value);
+      filterTables();
+    }
+
+    function onCardDayChange(id, select) {
+      const card = document.getElementById(`card-${id}`);
+      card.setAttribute('data-day', select.value);
+      filterTables();
+    }
+
+    function calculateCard(id) {
+      const card = document.getElementById(`card-${id}`);
+      if (!card) return;
+
+      const getInputs = (tier) => {
+        const row = card.querySelector(`tr[data-tier="${tier}"]`);
+        return {
+          have: parseInt(row.querySelector('.have-input').value) || 0,
+          craft: parseInt(row.querySelector('.craft-input').value) || 0
+        };
+      };
+
+      const t3 = getInputs(3);
+      const t2 = getInputs(2);
+      const t1 = getInputs(1);
+
+      const needT3 = t3.craft;
+      const needT2 = t2.craft + (needT3 * 3);
+      const needT1 = t1.craft + (needT2 * 3);
+
+      document.getElementById(`needed-total-${id}-3`).textContent = needT3;
+      document.getElementById(`needed-total-${id}-2`).textContent = needT2;
+      document.getElementById(`needed-total-${id}-1`).textContent = needT1;
+
+      let remT3 = Math.max(0, needT3 - t3.have);
+      let excessT3 = Math.max(0, t3.have - needT3);
+
+      let effNeedT2 = Math.max(0, needT2 - (excessT3 * 3));
+      let remT2 = Math.max(0, effNeedT2 - t2.have);
+      let excessT2 = Math.max(0, t2.have - effNeedT2);
+
+      let effNeedT1 = Math.max(0, needT1 - (excessT2 * 3));
+      let remT1 = Math.max(0, effNeedT1 - t1.have);
+
+      document.getElementById(`left-${id}-3`).textContent = remT3;
+      document.getElementById(`left-${id}-2`).textContent = remT2;
+      document.getElementById(`left-${id}-1`).textContent = remT1;
+
+      document.getElementById(`debug-${id}-3`).textContent = `Rem: ${remT3}\nEx: ${excessT3}`;
+      document.getElementById(`debug-${id}-2`).textContent = `Eff: ${effNeedT2}\nRem: ${remT2}`;
+      document.getElementById(`debug-${id}-1`).textContent = `Eff: ${effNeedT1}\nRem: ${remT1}`;
+    }
+
+    function filterTables() {
+      const matFilter = document.getElementById('materialFilterInput').value.toLowerCase();
+      const dayFilter = document.getElementById('dayFilterSelect').value;
+
+      document.querySelectorAll('.table-card').forEach(card => {
+        const mat = card.getAttribute('data-material') || '';
+        const grp = card.getAttribute('data-group') || 'DEFAULT';
+        const day = card.getAttribute('data-day') || 'Everyday';
+
+        const matchMat = mat.includes(matFilter);
+        const matchGrp = (activeGroupTab === 'ALL' || grp === activeGroupTab);
+        let matchDay = (dayFilter === 'ALL' || day === dayFilter);
+
+        if (dayFilter === 'TODAY') {
+          const todayIndex = new Date().getDay();
+          let pattern = 'Everyday';
+          if ([1, 4, 0].includes(todayIndex)) pattern = 'Mon/Thu/Sun';
+          else if ([2, 5, 0].includes(todayIndex)) pattern = 'Tue/Fri/Sun';
+          else if ([3, 6, 0].includes(todayIndex)) pattern = 'Wed/Sat/Sun';
+          matchDay = (day === 'Everyday' || day === pattern);
         }
 
-        if (matchesGroup && matchesText && matchesDay) {
+        if (matchMat && matchGrp && matchDay) {
           card.classList.remove('hidden');
         } else {
           card.classList.add('hidden');
         }
       });
-      
-      highlightTodaysTables(todaySchedulePattern);
     }
 
-    function addToMultiAccounts() {
-      const profileId = document.getElementById('profileIdInput').value.trim();
-      if (!profileId) { alert("Please enter a Profile ID first."); return; }
-      if (activeProfiles.has(profileId)) { alert('Profile "' + profileId + '" is already being viewed.'); return; }
-      loadProfileToMultiView(profileId);
-    }
-
-    async function loadProfileToMultiView(profileId) {
-      const statusEl = document.getElementById('syncStatus');
-      statusEl.textContent = 'Loading ' + profileId + '...';
-      
-      const masterData = await getMasterRecord();
-      const profileData = masterData.profiles ? masterData.profiles[profileId] : null;
-      
-      if (profileData) {
-        activeProfiles.set(profileId, {
-          groups: new Set(profileData.groups || []),
-          tables: profileData.tables || []
-        });
-        currentProfileId = profileId;
-        if (profileData.groups) profileData.groups.forEach(function(g) { registeredGroups.add(g); });
-        renderGroupTabs();
-        updateAllCardGroupDropdowns();
-        
-        const tablesData = profileData.tables || [];
-        tablesData.forEach(function(data) {
-          const newId = addTable(data.title, data.group, data.day || "Everyday", profileId);
-          const card = document.getElementById('card-' + newId);
-          const rows = card.querySelectorAll('tbody tr');
-          data.rows.forEach(function(rowData, idx) {
-            if (rows[idx]) {
-              rows[idx].querySelector('.have').value = rowData.have;
-              rows[idx].querySelector('.needed-input').value = rowData.needed;
-            }
-          });
-        });
-        
-        updateMultiAccountsBar();
-        saveActiveProfilesToCache();
-        recalculateAllTables();
-        statusEl.textContent = 'Viewing ' + activeProfiles.size + ' profile(s)';
-      } else {
-        alert('Profile "' + profileId + '" not found.');
-        statusEl.textContent = 'Ready';
-      }
-    }
-
-    function updateMultiAccountsBar() {
-      const bar = document.getElementById('multiAccountsBar');
-      const list = document.getElementById('accountsList');
-      
-      if (activeProfiles.size > 0) {
-        bar.classList.add('visible');
-        list.innerHTML = '';
-        activeProfiles.forEach(function(data, profileId) {
-          const chip = document.createElement('div');
-          chip.className = 'account-chip ' + (profileId === currentProfileId ? 'active' : '');
-          chip.innerHTML = '<span>' + profileId + '</span><button onclick="removeFromMultiAccounts(\'' + profileId + '\')" title="Remove">X</button>';
-          list.appendChild(chip);
-        });
-        const addBtn = document.createElement('button');
-        addBtn.className = 'add-account-btn';
-        addBtn.textContent = '+ Add Profile';
-        addBtn.onclick = addToMultiAccounts;
-        list.appendChild(addBtn);
-      } else {
-        bar.classList.remove('visible');
-      }
-    }
-
-    function removeFromMultiAccounts(profileId) {
-      if (confirm('Remove profile "' + profileId + '" from view?')) {
-        document.querySelectorAll('.table-card[data-profile="' + profileId + '"]').forEach(function(card) {
-          card.remove();
-        });
-        activeProfiles.delete(profileId);
-        if (currentProfileId === profileId) {
-          currentProfileId = activeProfiles.size > 0 ? Array.from(activeProfiles.keys())[0] : null;
-        }
-        updateMultiAccountsBar();
-        saveActiveProfilesToCache();
-        recalculateAllTables();
-      }
-    }
-
-    function updateProfileData(profileId) {
-      if (!activeProfiles.has(profileId)) return;
-      const profileData = activeProfiles.get(profileId);
-      const cards = document.querySelectorAll('.table-card[data-profile="' + profileId + '"]');
-      const tablesPayload = [];
-      cards.forEach(function(card) {
-        const title = card.querySelector('.card-title-input').value;
-        const group = card.getAttribute('data-group');
-        const day = card.getAttribute('data-day') || "Everyday";
-        const rowsData = [];
-        card.querySelectorAll('tbody tr').forEach(function(row) {
-          rowsData.push({
-            have: row.querySelector('.have').value,
-            needed: row.querySelector('.needed-input').value
-          });
-        });
-        tablesPayload.push({ title: title, group: group, day: day, rows: rowsData });
-      });
-      profileData.tables = tablesPayload;
-    }
-
-    function saveActiveProfilesToCache() {
-      const cache = {
-        currentProfile: currentProfileId,
-        activeProfiles: Array.from(activeProfiles.keys())
-      };
-      localStorage.setItem('resource_tracker_active_profiles', JSON.stringify(cache));
-    }
-
-    async function restoreMultiAccountView() {
-      try {
-        const cache = JSON.parse(localStorage.getItem('resource_tracker_active_profiles'));
-        if (cache && cache.activeProfiles && cache.activeProfiles.length > 0) {
-          for (let i = 0; i < cache.activeProfiles.length; i++) {
-            await loadProfileToMultiView(cache.activeProfiles[i]);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to restore multi-account view:', e);
-      }
-    }
-
-    async function getMasterRecord() {
-      try {
-        const res = await fetch(BASE_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
-        if (res.ok) {
-          const json = await res.json();
-          return json.record && typeof json.record === 'object' ? json.record : { profiles: {} };
-        }
-      } catch (err) { console.error(err); }
-      return { profiles: {} };
-    }
-
-    async function saveToCloud() {
-      const statusEl = document.getElementById('syncStatus');
-      if (activeProfiles.size === 0) {
-        const profileId = document.getElementById('profileIdInput').value.trim();
-        if (!profileId) { alert("Please enter a Profile ID first."); return; }
-        localStorage.setItem('resource_tracker_last_profile', profileId);
-        statusEl.textContent = 'Saving...';
-        await saveSingleProfile(profileId);
-      } else {
-        statusEl.textContent = 'Saving all profiles...';
-        const entries = Array.from(activeProfiles.entries());
-        for (let i = 0; i < entries.length; i++) {
-          await saveSingleProfile(entries[i][0], entries[i][1]);
-        }
-      }
-      setTimeout(function() { statusEl.textContent = 'Ready'; }, 3000);
-    }
-
-    async function saveSingleProfile(profileId, profileData) {
-      const statusEl = document.getElementById('syncStatus');
-      statusEl.textContent = 'Saving...';
-      statusEl.classList.add('saving');
-      
-      const masterData = await getMasterRecord();
-      if (!masterData.profiles) masterData.profiles = {};
-      
-      if (!profileData) {
-        const cards = document.querySelectorAll('.table-card');
-        const tablesPayload = [];
-        const groups = new Set();
-        cards.forEach(function(card) {
-          const title = card.querySelector('.card-title-input').value;
-          const group = card.getAttribute('data-group');
-          const day = card.getAttribute('data-day') || "Everyday";
-          groups.add(group);
-          const rowsData = [];
-          card.querySelectorAll('tbody tr').forEach(function(row) {
-            rowsData.push({
-              have: row.querySelector('.have').value,
-              needed: row.querySelector('.needed-input').value
-            });
-          });
-          tablesPayload.push({ title: title, group: group, day: day, rows: rowsData });
-        });
-        masterData.profiles[profileId] = { groups: Array.from(groups), tables: tablesPayload };
-      } else {
-        masterData.profiles[profileId] = {
-          groups: Array.from(profileData.groups),
-          tables: profileData.tables
-        };
-      }
-
-      try {
-        const res = await fetch(BASE_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-          body: JSON.stringify(masterData)
-        });
-        if (res.ok) {
-          statusEl.textContent = 'Saved (' + profileId + ')';
-          statusEl.classList.remove('saving');
-          setTimeout(function() { statusEl.textContent = 'Ready'; }, 2000);
-        } else {
-          statusEl.textContent = 'Save failed!';
-          statusEl.classList.remove('saving');
-        }
-      } catch (err) { 
-        statusEl.textContent = 'Save failed!';
-        statusEl.classList.remove('saving');
-        console.error('Save error:', err); 
-      }
-    }
-
-    async function loadProfile(profileId) {
-      const statusEl = document.getElementById('syncStatus');
-      statusEl.textContent = 'Loading...';
-      localStorage.setItem('resource_tracker_last_profile', profileId);
-      document.getElementById('tablesContainer').innerHTML = '';
-      tableCounter = 0;
-      registeredGroups = new Set();
-      activeProfiles.clear();
-      currentProfileId = profileId;
-
-      const masterData = await getMasterRecord();
-      const profileData = masterData.profiles ? masterData.profiles[profileId] : null;
-
-      if (profileData) {
-        if (profileData.groups) profileData.groups.forEach(function(g) { registeredGroups.add(g); });
-        renderGroupTabs();
-        const tablesData = profileData.tables || [];
-        tablesData.forEach(function(data) {
-          const newId = addTable(data.title, data.group, data.day || "Everyday");
-          const card = document.getElementById('card-' + newId);
-          const rows = card.querySelectorAll('tbody tr');
-          data.rows.forEach(function(rowData, idx) {
-            if (rows[idx]) {
-              rows[idx].querySelector('.have').value = rowData.have;
-              rows[idx].querySelector('.needed-input').value = rowData.needed;
-            }
-          });
-        });
-        recalculateAllTables();
-        statusEl.textContent = 'Loaded (' + profileId + ')';
-      } else {
-        renderGroupTabs();
-        statusEl.textContent = 'New Profile (' + profileId + ')';
-      }
-      updateMultiAccountsBar();
-      saveActiveProfilesToCache();
+    function setSyncStatus(status, isSaving = false) {
+      const el = document.getElementById('syncStatus');
+      el.textContent = status;
+      if (isSaving) el.classList.add('saving');
+      else el.classList.remove('saving');
     }
 
     function loadActiveProfile() {
-      const currentId = document.getElementById('profileIdInput').value.trim();
-      if (currentId) loadProfile(currentId);
+      const id = document.getElementById('profileIdInput').value.trim();
+      if (!id) return alert("Please enter a Profile ID.");
+      currentProfileId = id;
+      setSyncStatus("Loading...");
+
+      fetch(`${BASE_URL}?meta=false`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': API_KEY,
+          'X-Access-Key': API_KEY
+        }
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP Error: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        let profile = [];
+
+        if (Array.isArray(data)) {
+          profile = data;
+        } else if (data && typeof data === 'object') {
+          profile = data[currentProfileId] || [];
+        }
+
+        document.getElementById('tablesContainer').innerHTML = '';
+        tableCounter = 0;
+
+        if (profile.length === 0) {
+          setSyncStatus("No Data");
+          return;
+        }
+
+        profile.forEach(item => {
+          if (item.group && !registeredGroups.has(item.group)) {
+            registeredGroups.add(item.group);
+          }
+          addTable(item.name || "Material", item.group || "DEFAULT", item.day || "Everyday", currentProfileId);
+          const card = document.getElementById(`card-${tableCounter}`);
+          
+          if (item.tiers) {
+            [3, 2, 1].forEach(tier => {
+              const row = card.querySelector(`tr[data-tier="${tier}"]`);
+              if (row && item.tiers[tier]) {
+                row.querySelector('.have-input').value = item.tiers[tier].have || 0;
+                row.querySelector('.craft-input').value = item.tiers[tier].craft || 0;
+              }
+            });
+          }
+          calculateCard(tableCounter);
+        });
+
+        renderGroupTabs();
+        setSyncStatus("Loaded");
+        updateMultiAccountsUI();
+      })
+      .catch(err => {
+        console.error("API Load Error:", err);
+        setSyncStatus("Load Failed");
+      });
     }
 
-    function initApp() {
-      updateCurrentDayDisplay();
-      const cachedProfile = localStorage.getItem('resource_tracker_last_profile');
-      if (cachedProfile) {
-        document.getElementById('profileIdInput').value = cachedProfile;
-        loadProfile(cachedProfile).then(function() {
-          restoreMultiAccountView();
+    function saveToCloud() {
+      if (!currentProfileId) return alert("Please load or specify a Profile ID first.");
+      setSyncStatus("Saving...", true);
+
+      fetch(`${BASE_URL}?meta=false`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': API_KEY,
+          'X-Access-Key': API_KEY
+        }
+      })
+      .then(res => res.ok ? res.json() : {})
+      .catch(() => ({}))
+      .then(masterData => {
+        let payloadData = (masterData && typeof masterData === 'object' && !Array.isArray(masterData)) ? masterData : {};
+
+        const currentTables = [];
+        document.querySelectorAll('.table-card').forEach(card => {
+          const name = card.querySelector('.card-title-input').value;
+          const group = card.getAttribute('data-group');
+          const day = card.getAttribute('data-day');
+
+          const tiers = {};
+          [3, 2, 1].forEach(tier => {
+            const row = card.querySelector(`tr[data-tier="${tier}"]`);
+            tiers[tier] = {
+              have: parseInt(row.querySelector('.have-input').value) || 0,
+              craft: parseInt(row.querySelector('.craft-input').value) || 0
+            };
+          });
+
+          currentTables.push({ name, group, day, tiers });
         });
-      } else {
-        renderGroupTabs();
-        restoreMultiAccountView();
+
+        payloadData[currentProfileId] = currentTables;
+
+        return fetch(BASE_URL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY,
+            'X-Access-Key': API_KEY
+          },
+          body: JSON.stringify(payloadData)
+        });
+      })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP Save Error: ${res.status}`);
+        return res.json();
+      })
+      .then(() => {
+        setSyncStatus("Saved");
+      })
+      .catch(err => {
+        console.error("API Save Error:", err);
+        setSyncStatus("Save Failed");
+      });
+    }
+
+    function addToMultiAccounts() {
+      const id = document.getElementById('profileIdInput').value.trim();
+      if (!id) return alert("Enter a valid Profile ID");
+      if (!activeProfiles.has(id)) {
+        activeProfiles.set(id, true);
+        updateMultiAccountsUI();
       }
     }
 
-    initApp();
+    function updateMultiAccountsUI() {
+      const bar = document.getElementById('multiAccountsBar');
+      const list = document.getElementById('accountsList');
+      if (activeProfiles.size === 0) {
+        bar.classList.remove('visible');
+        return;
+      }
+
+      bar.classList.add('visible');
+      let html = '';
+      activeProfiles.forEach((_, profId) => {
+        const isActive = profId === currentProfileId;
+        html += `
+          <div class="account-chip ${isActive ? 'active' : ''}">
+            <span>${profId}</span>
+            <button onclick="removeProfileFromView('${profId}')">×</button>
+          </div>`;
+      });
+      list.innerHTML = html;
+    }
+
+    function removeProfileFromView(profId) {
+      activeProfiles.delete(profId);
+      updateMultiAccountsUI();
+    }
   </script>
 </body>
 </html>
