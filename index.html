@@ -69,6 +69,28 @@
       margin-top: 1px;
     }
 
+    /* Current Day Display - FEATURE 1 */
+    .current-day-badge {
+      background: linear-gradient(135deg, var(--sky-blue), #0369a1);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+      margin-right: 12px;
+    }
+
+    .current-day-badge.today-highlight {
+      background: linear-gradient(135deg, var(--gold-accent), #b45309);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
     .controls {
       display: flex;
       align-items: center;
@@ -198,6 +220,77 @@
 
     .btn-save:hover { background-color: #b45309; }
 
+    /* Multiple Accounts Section - FEATURE 2 */
+    .multi-accounts-bar {
+      background: var(--card-bg);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .multi-accounts-bar.visible {
+      display: block;
+    }
+
+    .accounts-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .account-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--sky-light);
+      border: 2px solid var(--sky-border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #0369a1;
+    }
+
+    .account-chip.active {
+      background: var(--gold-light);
+      border-color: var(--gold-border);
+      color: var(--gold-accent);
+    }
+
+    .account-chip button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: inherit;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .account-chip button:hover {
+      color: #ef4444;
+    }
+
+    .add-account-btn {
+      background: transparent;
+      border: 2px dashed var(--border-color);
+      border-radius: 20px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .add-account-btn:hover {
+      border-color: var(--sky-blue);
+      color: var(--sky-blue);
+    }
+
     /* Group Bar */
     .group-tabs-bar {
       display: flex;
@@ -273,9 +366,15 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      transition: all 0.2s;
     }
 
     .table-card.hidden { display: none !important; }
+
+    .table-card.today-relevant {
+      border-top: 3px solid var(--sky-blue);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.15);
+    }
 
     .card-header {
       display: flex;
@@ -455,6 +554,14 @@
       text-align: left;
       white-space: pre-wrap;
     }
+
+    /* Profile indicator */
+    .profile-indicator {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-top: 2px;
+    }
   </style>
 </head>
 <body>
@@ -465,6 +572,9 @@
       <p>Multi-Profile Material Planner</p>
     </div>
     <div class="controls">
+      <!-- FEATURE 1: Current Day Display -->
+      <div class="current-day-badge" id="currentDayBadge">Today: Loading...</div>
+      
       <span class="sync-status" id="syncStatus">Ready</span>
       
       <div class="id-input-wrapper">
@@ -472,6 +582,7 @@
         <input type="text" id="profileIdInput" class="id-input" placeholder="Enter ID...">
       </div>
       <button class="btn-action" onclick="loadActiveProfile()">Load</button>
+      <button class="btn-action" onclick="addToMultiAccounts()">+ Add to View</button>
 
       <div class="material-filter-wrapper">
         <input type="text" id="materialFilterInput" class="filter-input" placeholder="Filter Material..." oninput="filterTables()">
@@ -484,6 +595,7 @@
         <option value="Mon/Thu/Sun">Mon/Thu/Sun</option>
         <option value="Tue/Fri/Sun">Tue/Fri/Sun</option>
         <option value="Wed/Sat/Sun">Wed/Sat/Sun</option>
+        <option value="TODAY">Today's Schedule</option>
       </select>
 
       <button class="btn-action btn-save" onclick="saveToCloud()">Save to Cloud</button>
@@ -499,6 +611,14 @@
     </div>
   </div>
 
+  <!-- FEATURE 2: Multiple Accounts Bar -->
+  <div class="multi-accounts-bar" id="multiAccountsBar">
+    <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">
+      Active Profiles:
+    </div>
+    <div class="accounts-list" id="accountsList"></div>
+  </div>
+
   <div class="group-tabs-bar" id="groupTabsContainer"></div>
 
   <div class="tables-grid" id="tablesContainer"></div>
@@ -511,6 +631,10 @@
     let tableCounter = 0;
     let registeredGroups = new Set();
     let activeGroupTab = "ALL";
+    
+    // FEATURE 2: Multiple accounts tracking
+    let activeProfiles = new Map(); // Map<profileId, {groups: Set, tables: Array}>
+    let currentProfileId = null;
 
     const DAY_OPTIONS = [
       "Everyday",
@@ -519,18 +643,79 @@
       "Wed/Sat/Sun"
     ];
 
+    const DAY_MAPPING = {
+      'Sunday': 0,
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6
+    };
+
+    // FEATURE 1: Current Day Display
+    function updateCurrentDayDisplay() {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const today = new Date();
+      const dayName = days[today.getDay()];
+      const badge = document.getElementById('currentDayBadge');
+      badge.textContent = `Today: ${dayName}`;
+      
+      // Add highlight animation
+      badge.classList.add('today-highlight');
+      setTimeout(() => badge.classList.remove('today-highlight'), 2000);
+      
+      // Auto-filter to today's schedule
+      autoFilterTodaysSchedule(dayName);
+    }
+
+    function autoFilterTodaysSchedule(dayName) {
+      const dayFilter = document.getElementById('dayFilterSelect');
+      const dayIndex = DAY_MAPPING[dayName];
+      
+      let schedulePattern = 'Everyday';
+      
+      if (dayIndex === 0) schedulePattern = 'Everyday'; // Sunday
+      else if ([1, 4, 0].includes(dayIndex)) schedulePattern = 'Mon/Thu/Sun';
+      else if ([2, 5, 0].includes(dayIndex)) schedulePattern = 'Tue/Fri/Sun';
+      else if ([3, 6, 0].includes(dayIndex)) schedulePattern = 'Wed/Sat/Sun';
+      
+      // Set filter to show today's relevant items
+      if (dayFilter.value === 'TODAY' || dayFilter.value === 'ALL') {
+        highlightTodaysTables(schedulePattern);
+      }
+    }
+
+    function highlightTodaysTables(schedulePattern) {
+      document.querySelectorAll('.table-card').forEach(card => {
+        const cardDay = card.getAttribute('data-day') || 'Everyday';
+        const isRelevant = (cardDay === 'Everyday' || cardDay === schedulePattern);
+        
+        if (isRelevant) {
+          card.classList.add('today-relevant');
+        } else {
+          card.classList.remove('today-relevant');
+        }
+      });
+    }
+
     function toggleDebugView() {
       const isChecked = document.getElementById('debugToggle').checked;
       document.body.classList.toggle('show-debug', isChecked);
     }
 
-    function createTableHTML(id, materialName, selectedGroup, selectedDay) {
+    function createTableHTML(id, materialName, selectedGroup, selectedDay, profileId = null) {
       const dayVal = selectedDay || "Everyday";
+      const profileIndicator = profileId ? `<div class="profile-indicator">Profile: ${profileId}</div>` : '';
+      
       return `
-        <div class="table-card" id="card-${id}" data-material="${materialName.toLowerCase()}" data-group="${selectedGroup}" data-day="${dayVal}">
+        <div class="table-card" id="card-${id}" data-material="${materialName.toLowerCase()}" data-group="${selectedGroup}" data-day="${dayVal}" data-profile="${profileId || 'default'}">
           <div class="card-header">
-            <input type="text" class="card-title-input" value="${materialName}" placeholder="Material Name..." oninput="onMaterialNameChange(${id})">
-            <button class="btn-delete" title="Remove Table" onclick="removeTable(${id})">✕</button>
+            <div style="flex: 1;">
+              <input type="text" class="card-title-input" value="${materialName}" placeholder="Material Name..." oninput="onMaterialNameChange(${id})">
+              ${profileIndicator}
+            </div>
+            <button class="btn-delete" title="Remove Table" onclick="removeTable(${id})"></button>
           </div>
           <div class="card-sub-bar">
             <select class="card-group-select" onchange="onCardGroupChange(${id}, this)">
@@ -599,7 +784,7 @@
       });
     }
 
-    function addTable(materialName, groupName, dayName) {
+    function addTable(materialName, groupName, dayName, profileId = null) {
       tableCounter++;
       const name = materialName || `Material #${tableCounter}`;
       
@@ -619,14 +804,17 @@
 
       const container = document.getElementById('tablesContainer');
       const wrapper = document.createElement('div');
-      wrapper.innerHTML = createTableHTML(tableCounter, name, group, dayName || "Everyday");
+      wrapper.innerHTML = createTableHTML(tableCounter, name, group, dayName || "Everyday", profileId);
       const cardElement = wrapper.firstElementChild;
       
       container.appendChild(cardElement);
       updateAllCardGroupDropdowns();
+      
+      // FEATURE 3: Auto-update after changing values
       recalculateAllSameMaterials(name.toLowerCase());
       recalculateAllTables();
       filterTables();
+      
       return tableCounter;
     }
 
@@ -634,17 +822,32 @@
       const card = document.getElementById(`card-${id}`);
       if (card) {
         const materialKey = card.getAttribute('data-material');
+        const profileId = card.getAttribute('data-profile');
         card.remove();
         recalculateAllSameMaterials(materialKey);
         recalculateAllTables();
+        
+        // Update active profiles if needed
+        if (profileId && activeProfiles.has(profileId)) {
+          updateProfileData(profileId);
+        }
       }
     }
 
+    // FEATURE 3: Enhanced auto-recalculation
     function triggerRecalculation(id) {
       const card = document.getElementById(`card-${id}`);
       if (!card) return;
       const materialKey = card.getAttribute('data-material');
+      const profileId = card.getAttribute('data-profile');
+      
+      // Immediate recalculation
       recalculateAllSameMaterials(materialKey);
+      
+      // Update profile data if in multi-account mode
+      if (profileId && activeProfiles.has(profileId)) {
+        updateProfileData(profileId);
+      }
     }
 
     function onCardGroupChange(id, selectEl) {
@@ -671,12 +874,23 @@
       const materialKey = card.getAttribute('data-material');
       recalculateAllSameMaterials(materialKey);
       filterTables();
+      
+      // Update profile data
+      const profileId = card.getAttribute('data-profile');
+      if (profileId && activeProfiles.has(profileId)) {
+        updateProfileData(profileId);
+      }
     }
 
     function onCardDayChange(id, selectEl) {
       const card = document.getElementById(`card-${id}`);
       card.setAttribute('data-day', selectEl.value);
       filterTables();
+      
+      const profileId = card.getAttribute('data-profile');
+      if (profileId && activeProfiles.has(profileId)) {
+        updateProfileData(profileId);
+      }
     }
 
     function onMaterialNameChange(id) {
@@ -827,6 +1041,18 @@
       const selectedDayFilter = document.getElementById('dayFilterSelect').value;
       const cards = document.querySelectorAll('.table-card');
 
+      // Get today's schedule pattern
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const today = new Date();
+      const dayName = days[today.getDay()];
+      const dayIndex = DAY_MAPPING[dayName];
+      
+      let todaySchedulePattern = 'Everyday';
+      if (dayIndex === 0) todaySchedulePattern = 'Everyday';
+      else if ([1, 4, 0].includes(dayIndex)) todaySchedulePattern = 'Mon/Thu/Sun';
+      else if ([2, 5, 0].includes(dayIndex)) todaySchedulePattern = 'Tue/Fri/Sun';
+      else if ([3, 6, 0].includes(dayIndex)) todaySchedulePattern = 'Wed/Sat/Sun';
+
       cards.forEach(card => {
         const material = card.getAttribute('data-material');
         const group = card.getAttribute('data-group');
@@ -836,7 +1062,9 @@
         const matchesText = (filterText === '' || material.includes(filterText));
         
         let matchesDay = true;
-        if (selectedDayFilter !== 'ALL') {
+        if (selectedDayFilter === 'TODAY') {
+          matchesDay = (day === 'Everyday' || day === todaySchedulePattern);
+        } else if (selectedDayFilter !== 'ALL') {
           matchesDay = (day === selectedDayFilter);
         }
 
@@ -846,6 +1074,149 @@
           card.classList.add('hidden');
         }
       });
+      
+      // Highlight today's relevant tables
+      highlightTodaysTables(todaySchedulePattern);
+    }
+
+    // FEATURE 2: Multiple Accounts Functions
+    function addToMultiAccounts() {
+      const profileId = document.getElementById('profileIdInput').value.trim();
+      
+      if (!profileId) {
+        alert("Please enter a Profile ID first.");
+        return;
+      }
+      
+      if (activeProfiles.has(profileId)) {
+        alert(`Profile "${profileId}" is already being viewed.`);
+        return;
+      }
+      
+      // Load profile data
+      loadProfileToMultiView(profileId);
+    }
+
+    async function loadProfileToMultiView(profileId) {
+      const statusEl = document.getElementById('syncStatus');
+      statusEl.textContent = `Loading ${profileId}...`;
+      
+      const masterData = await getMasterRecord();
+      const profileData = masterData.profiles ? masterData.profiles[profileId] : null;
+      
+      if (profileData) {
+        // Add to active profiles
+        activeProfiles.set(profileId, {
+          groups: new Set(profileData.groups || []),
+          tables: profileData.tables || []
+        });
+        
+        currentProfileId = profileId;
+        
+        // Merge groups
+        if (profileData.groups) {
+          profileData.groups.forEach(g => registeredGroups.add(g));
+        }
+        
+        renderGroupTabs();
+        updateAllCardGroupDropdowns();
+        
+        // Add tables with profile indicator
+        const tablesData = profileData.tables || [];
+        tablesData.forEach(data => {
+          const newId = addTable(data.title, data.group, data.day || "Everyday", profileId);
+          const card = document.getElementById(`card-${newId}`);
+          const rows = card.querySelectorAll('tbody tr');
+
+          data.rows.forEach((rowData, idx) => {
+            if (rows[idx]) {
+              rows[idx].querySelector('.have').value = rowData.have;
+              rows[idx].querySelector('.needed-input').value = rowData.needed;
+            }
+          });
+        });
+        
+        updateMultiAccountsBar();
+        recalculateAllTables();
+        statusEl.textContent = `Viewing ${activeProfiles.size} profile(s)`;
+      } else {
+        alert(`Profile "${profileId}" not found.`);
+        statusEl.textContent = 'Ready';
+      }
+    }
+
+    function updateMultiAccountsBar() {
+      const bar = document.getElementById('multiAccountsBar');
+      const list = document.getElementById('accountsList');
+      
+      if (activeProfiles.size > 0) {
+        bar.classList.add('visible');
+        list.innerHTML = '';
+        
+        activeProfiles.forEach((data, profileId) => {
+          const chip = document.createElement('div');
+          chip.className = `account-chip ${profileId === currentProfileId ? 'active' : ''}`;
+          chip.innerHTML = `
+            <span>${profileId}</span>
+            <button onclick="removeFromMultiAccounts('${profileId}')" title="Remove">×</button>
+          `;
+          list.appendChild(chip);
+        });
+        
+        // Add "Add more" button
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-account-btn';
+        addBtn.textContent = '+ Add Profile';
+        addBtn.onclick = addToMultiAccounts;
+        list.appendChild(addBtn);
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    function removeFromMultiAccounts(profileId) {
+      if (confirm(`Remove profile "${profileId}" from view?`)) {
+        // Remove tables belonging to this profile
+        document.querySelectorAll(`.table-card[data-profile="${profileId}"]`).forEach(card => {
+          const id = card.id.replace('card-', '');
+          card.remove();
+        });
+        
+        activeProfiles.delete(profileId);
+        
+        if (currentProfileId === profileId) {
+          currentProfileId = activeProfiles.size > 0 ? Array.from(activeProfiles.keys())[0] : null;
+        }
+        
+        updateMultiAccountsBar();
+        recalculateAllTables();
+      }
+    }
+
+    function updateProfileData(profileId) {
+      if (!activeProfiles.has(profileId)) return;
+      
+      const profileData = activeProfiles.get(profileId);
+      const cards = document.querySelectorAll(`.table-card[data-profile="${profileId}"]`);
+      
+      const tablesPayload = [];
+      cards.forEach(card => {
+        const title = card.querySelector('.card-title-input').value;
+        const group = card.getAttribute('data-group');
+        const day = card.getAttribute('data-day') || "Everyday";
+        const rowsData = [];
+        
+        card.querySelectorAll('tbody tr').forEach(row => {
+          rowsData.push({
+            have: row.querySelector('.have').value,
+            needed: row.querySelector('.needed-input').value
+          });
+        });
+
+        tablesPayload.push({ title, group, day, rows: rowsData });
+      });
+      
+      profileData.tables = tablesPayload;
     }
 
     // Cloud Persistence
@@ -862,38 +1233,66 @@
 
     async function saveToCloud() {
       const statusEl = document.getElementById('syncStatus');
-      const profileId = document.getElementById('profileIdInput').value.trim();
-
-      if (!profileId) { alert("Please enter a Profile ID first."); return; }
-
-      localStorage.setItem('resource_tracker_last_profile', profileId);
-      statusEl.textContent = 'Saving...';
-
-      const cards = document.querySelectorAll('.table-card');
-      const tablesPayload = [];
-
-      cards.forEach(card => {
-        const title = card.querySelector('.card-title-input').value;
-        const group = card.getAttribute('data-group');
-        const day = card.getAttribute('data-day') || "Everyday";
-        const rowsData = [];
+      
+      if (activeProfiles.size === 0) {
+        // Single profile mode
+        const profileId = document.getElementById('profileIdInput').value.trim();
+        if (!profileId) { alert("Please enter a Profile ID first."); return; }
         
-        card.querySelectorAll('tbody tr').forEach(row => {
-          rowsData.push({
-            have: row.querySelector('.have').value,
-            needed: row.querySelector('.needed-input').value
-          });
-        });
+        localStorage.setItem('resource_tracker_last_profile', profileId);
+        statusEl.textContent = 'Saving...';
+        
+        await saveSingleProfile(profileId);
+      } else {
+        // Multi-profile mode
+        statusEl.textContent = 'Saving all profiles...';
+        
+        for (const [profileId, data] of activeProfiles) {
+          await saveSingleProfile(profileId, data);
+        }
+      }
+      
+      setTimeout(() => statusEl.textContent = 'Ready', 3000);
+    }
 
-        tablesPayload.push({ title, group, day, rows: rowsData });
-      });
-
+    async function saveSingleProfile(profileId, profileData = null) {
       const masterData = await getMasterRecord();
       if (!masterData.profiles) masterData.profiles = {};
-      masterData.profiles[profileId] = {
-        groups: Array.from(registeredGroups),
-        tables: tablesPayload
-      };
+      
+      if (!profileData) {
+        // Collect from DOM
+        const cards = document.querySelectorAll('.table-card');
+        const tablesPayload = [];
+        const groups = new Set();
+
+        cards.forEach(card => {
+          const title = card.querySelector('.card-title-input').value;
+          const group = card.getAttribute('data-group');
+          const day = card.getAttribute('data-day') || "Everyday";
+          groups.add(group);
+          
+          const rowsData = [];
+          card.querySelectorAll('tbody tr').forEach(row => {
+            rowsData.push({
+              have: row.querySelector('.have').value,
+              needed: row.querySelector('.needed-input').value
+            });
+          });
+
+          tablesPayload.push({ title, group, day, rows: rowsData });
+        });
+        
+        masterData.profiles[profileId] = {
+          groups: Array.from(groups),
+          tables: tablesPayload
+        };
+      } else {
+        // Use provided data
+        masterData.profiles[profileId] = {
+          groups: Array.from(profileData.groups),
+          tables: profileData.tables
+        };
+      }
 
       try {
         const res = await fetch(BASE_URL, {
@@ -903,12 +1302,11 @@
         });
 
         if (res.ok) {
-          statusEl.textContent = `Saved (${profileId})`;
-          setTimeout(() => statusEl.textContent = 'Ready', 3000);
-        } else {
-          statusEl.textContent = 'Save failed.';
+          console.log(`Saved profile: ${profileId}`);
         }
-      } catch (err) { statusEl.textContent = 'Network error.'; }
+      } catch (err) { 
+        console.error('Save error:', err); 
+      }
     }
 
     async function loadProfile(profileId) {
@@ -917,12 +1315,15 @@
 
       localStorage.setItem('resource_tracker_last_profile', profileId);
 
-      const masterData = await getMasterRecord();
-      const profileData = masterData.profiles ? masterData.profiles[profileId] : null;
-
+      // Clear existing
       document.getElementById('tablesContainer').innerHTML = '';
       tableCounter = 0;
       registeredGroups = new Set();
+      activeProfiles.clear();
+      currentProfileId = profileId;
+
+      const masterData = await getMasterRecord();
+      const profileData = masterData.profiles ? masterData.profiles[profileId] : null;
 
       if (profileData) {
         if (profileData.groups) profileData.groups.forEach(g => registeredGroups.add(g));
@@ -948,6 +1349,8 @@
         renderGroupTabs();
         statusEl.textContent = `New Profile (${profileId})`;
       }
+      
+      updateMultiAccountsBar();
     }
 
     function loadActiveProfile() {
@@ -956,6 +1359,9 @@
     }
 
     function initApp() {
+      // FEATURE 1: Initialize current day display
+      updateCurrentDayDisplay();
+      
       const cachedProfile = localStorage.getItem('resource_tracker_last_profile');
       if (cachedProfile) {
         document.getElementById('profileIdInput').value = cachedProfile;
