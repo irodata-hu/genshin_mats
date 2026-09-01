@@ -69,7 +69,7 @@
       margin-top: 1px;
     }
 
-    /* Current Day Display - FEATURE 1 */
+    /* Current Day Display */
     .current-day-badge {
       background: linear-gradient(135deg, var(--sky-blue), #0369a1);
       color: white;
@@ -232,7 +232,7 @@
 
     .btn-save:hover { background-color: #b45309; }
 
-    /* Multiple Accounts Section - FEATURE 2 */
+    /* Multiple Accounts Section */
     .multi-accounts-bar {
       background: var(--card-bg);
       padding: 10px 16px;
@@ -641,14 +641,11 @@
     const BASE_URL = `https://api.jsonbin.io/v3/b/${MASTER_BIN_ID}`;
 
     let tableCounter = 0;
-    let registeredGroups = new Set();
+    let registeredGroups = new Set(["DEFAULT"]);
     let activeGroupTab = "ALL";
     
-    // FEATURE 2: Multiple accounts tracking
-    let activeProfiles = new Map(); // Map<profileId, {groups: Set, tables: Array}>
+    let activeProfiles = new Map();
     let currentProfileId = null;
-    
-    // Auto-save debounce
     let autoSaveTimeout = null;
 
     const DAY_OPTIONS = [
@@ -668,7 +665,11 @@
       'Saturday': 6
     };
 
-    // FEATURE 1: Current Day Display
+    window.addEventListener('DOMContentLoaded', () => {
+      updateCurrentDayDisplay();
+      renderGroupTabs();
+    });
+
     function updateCurrentDayDisplay() {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const today = new Date();
@@ -676,26 +677,22 @@
       const badge = document.getElementById('currentDayBadge');
       badge.textContent = `Today: ${dayName}`;
       
-      // Add highlight animation
       badge.classList.add('today-highlight');
       setTimeout(() => badge.classList.remove('today-highlight'), 2000);
       
-      // Auto-filter to today's schedule
       autoFilterTodaysSchedule(dayName);
     }
 
     function autoFilterTodaysSchedule(dayName) {
       const dayFilter = document.getElementById('dayFilterSelect');
       const dayIndex = DAY_MAPPING[dayName];
-      
       let schedulePattern = 'Everyday';
       
-      if (dayIndex === 0) schedulePattern = 'Everyday'; // Sunday
+      if (dayIndex === 0) schedulePattern = 'Everyday';
       else if ([1, 4, 0].includes(dayIndex)) schedulePattern = 'Mon/Thu/Sun';
       else if ([2, 5, 0].includes(dayIndex)) schedulePattern = 'Tue/Fri/Sun';
       else if ([3, 6, 0].includes(dayIndex)) schedulePattern = 'Wed/Sat/Sun';
       
-      // Set filter to show today's relevant items
       if (dayFilter.value === 'TODAY' || dayFilter.value === 'ALL') {
         highlightTodaysTables(schedulePattern);
       }
@@ -719,6 +716,69 @@
       document.body.classList.toggle('show-debug', isChecked);
     }
 
+    function renderGroupOptions(selectedGroup) {
+      return Array.from(registeredGroups).map(group => 
+        `<option value="${group}" ${group === selectedGroup ? 'selected' : ''}>${group}</option>`
+      ).join('');
+    }
+
+    function renderGroupTabs() {
+      const container = document.getElementById('groupTabsContainer');
+      let html = `
+        <div class="group-tab-wrapper ${activeGroupTab === 'ALL' ? 'active' : ''}">
+          <button class="group-tab-btn" onclick="selectGroupTab('ALL')">ALL</button>
+        </div>`;
+      
+      registeredGroups.forEach(group => {
+        html += `
+          <div class="group-tab-wrapper ${activeGroupTab === group ? 'active' : ''}">
+            <button class="group-tab-btn" onclick="selectGroupTab('${group}')">${group}</button>
+            ${group !== 'DEFAULT' ? `<button class="group-delete-btn" onclick="deleteGroup('${group}')">×</button>` : ''}
+          </div>`;
+      });
+
+      html += `<button class="add-account-btn" onclick="addNewGroup()">+ New Group</button>`;
+      container.innerHTML = html;
+    }
+
+    function selectGroupTab(group) {
+      activeGroupTab = group;
+      renderGroupTabs();
+      filterTables();
+    }
+
+    function addNewGroup() {
+      const name = prompt("Enter new Group Name:");
+      if (!name) return;
+      const cleanName = name.trim().toUpperCase();
+      if (cleanName) {
+        registeredGroups.add(cleanName);
+        renderGroupTabs();
+        updateAllGroupDropdowns();
+      }
+    }
+
+    function deleteGroup(group) {
+      if (group === 'DEFAULT') return;
+      registeredGroups.delete(group);
+      if (activeGroupTab === group) activeGroupTab = "ALL";
+      renderGroupTabs();
+      updateAllGroupDropdowns();
+      filterTables();
+    }
+
+    function updateAllGroupDropdowns() {
+      document.querySelectorAll('.card-group-select').forEach(select => {
+        const currentVal = select.value;
+        select.innerHTML = renderGroupOptions(currentVal);
+        if (!registeredGroups.has(currentVal)) {
+          select.value = "DEFAULT";
+          const cardId = select.closest('.table-card').id.replace('card-', '');
+          onCardGroupChange(cardId, select);
+        }
+      });
+    }
+
     function createTableHTML(id, materialName, selectedGroup, selectedDay, profileId = null) {
       const dayVal = selectedDay || "Everyday";
       const profileIndicator = profileId ? `<div class="profile-indicator">Profile: ${profileId}</div>` : '';
@@ -738,4 +798,278 @@
             </select>
             <select class="card-day-select" onchange="onCardDayChange(${id}, this)">
               ${DAY_OPTIONS.map(d => `<option value="${d}" ${d === dayVal ? 'selected' : ''}>${d}</option>`).join('')}
-           
+            </select>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Have</th>
+                <th>Need</th>
+                <th>Left</th>
+                <th class="debug-col">Debug</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[3, 2, 1].map(tier => `
+                <tr data-tier="${tier}">
+                  <td><strong>T${tier}</strong></td>
+                  <td><input type="number" min="0" value="0" class="have-input" oninput="calculateCard(${id})"></td>
+                  <td>
+                    <div class="needed-wrapper">
+                      <span class="needed-total" id="needed-total-${id}-${tier}">0</span>
+                      <div class="sub-input">
+                        +<input type="number" min="0" value="0" class="craft-input" oninput="calculateCard(${id})">
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="left-needed-badge" id="left-${id}-${tier}">0</span></td>
+                  <td class="debug-col"><div class="debug-box" id="debug-${id}-${tier}">-</div></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function addTable(materialName = "New Material", group = "DEFAULT", day = "Everyday", profileId = null) {
+      tableCounter++;
+      const id = tableCounter;
+      const container = document.getElementById('tablesContainer');
+      container.insertAdjacentHTML('beforeend', createTableHTML(id, materialName, group, day, profileId || currentProfileId));
+      calculateCard(id);
+      filterTables();
+    }
+
+    function removeTable(id) {
+      const card = document.getElementById(`card-${id}`);
+      if (card) card.remove();
+    }
+
+    function onMaterialNameChange(id) {
+      const card = document.getElementById(`card-${id}`);
+      const title = card.querySelector('.card-title-input').value;
+      card.setAttribute('data-material', title.toLowerCase());
+      filterTables();
+    }
+
+    function onCardGroupChange(id, select) {
+      const card = document.getElementById(`card-${id}`);
+      card.setAttribute('data-group', select.value);
+      filterTables();
+    }
+
+    function onCardDayChange(id, select) {
+      const card = document.getElementById(`card-${id}`);
+      card.setAttribute('data-day', select.value);
+      filterTables();
+    }
+
+    function calculateCard(id) {
+      const card = document.getElementById(`card-${id}`);
+      if (!card) return;
+
+      const getInputs = (tier) => {
+        const row = card.querySelector(`tr[data-tier="${tier}"]`);
+        return {
+          have: parseInt(row.querySelector('.have-input').value) || 0,
+          craft: parseInt(row.querySelector('.craft-input').value) || 0
+        };
+      };
+
+      const t3 = getInputs(3);
+      const t2 = getInputs(2);
+      const t1 = getInputs(1);
+
+      // Total Needed Calculations (3x multiplier per tier conversion)
+      const needT3 = t3.craft;
+      const needT2 = t2.craft + (needT3 * 3);
+      const needT1 = t1.craft + (needT2 * 3);
+
+      document.getElementById(`needed-total-${id}-3`).textContent = needT3;
+      document.getElementById(`needed-total-${id}-2`).textContent = needT2;
+      document.getElementById(`needed-total-${id}-1`).textContent = needT1;
+
+      // Remaining Needs after applying current inventory stock downwards
+      let remT3 = Math.max(0, needT3 - t3.have);
+      let excessT3 = Math.max(0, t3.have - needT3);
+
+      let effNeedT2 = Math.max(0, needT2 - (excessT3 * 3));
+      let remT2 = Math.max(0, effNeedT2 - t2.have);
+      let excessT2 = Math.max(0, t2.have - effNeedT2);
+
+      let effNeedT1 = Math.max(0, needT1 - (excessT2 * 3));
+      let remT1 = Math.max(0, effNeedT1 - t1.have);
+
+      document.getElementById(`left-${id}-3`).textContent = remT3;
+      document.getElementById(`left-${id}-2`).textContent = remT2;
+      document.getElementById(`left-${id}-1`).textContent = remT1;
+
+      // Debug information update
+      document.getElementById(`debug-${id}-3`).textContent = `Rem: ${remT3}\nEx: ${excessT3}`;
+      document.getElementById(`debug-${id}-2`).textContent = `Eff: ${effNeedT2}\nRem: ${remT2}`;
+      document.getElementById(`debug-${id}-1`).textContent = `Eff: ${effNeedT1}\nRem: ${remT1}`;
+    }
+
+    function filterTables() {
+      const matFilter = document.getElementById('materialFilterInput').value.toLowerCase();
+      const dayFilter = document.getElementById('dayFilterSelect').value;
+
+      document.querySelectorAll('.table-card').forEach(card => {
+        const mat = card.getAttribute('data-material') || '';
+        const grp = card.getAttribute('data-group') || 'DEFAULT';
+        const day = card.getAttribute('data-day') || 'Everyday';
+
+        const matchMat = mat.includes(matFilter);
+        const matchGrp = (activeGroupTab === 'ALL' || grp === activeGroupTab);
+        let matchDay = (dayFilter === 'ALL' || day === dayFilter);
+
+        if (dayFilter === 'TODAY') {
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const todayIndex = new Date().getDay();
+          let pattern = 'Everyday';
+          if ([1, 4, 0].includes(todayIndex)) pattern = 'Mon/Thu/Sun';
+          else if ([2, 5, 0].includes(todayIndex)) pattern = 'Tue/Fri/Sun';
+          else if ([3, 6, 0].includes(todayIndex)) pattern = 'Wed/Sat/Sun';
+          matchDay = (day === 'Everyday' || day === pattern);
+        }
+
+        if (matchMat && matchGrp && matchDay) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    }
+
+    function setSyncStatus(status, isSaving = false) {
+      const el = document.getElementById('syncStatus');
+      el.textContent = status;
+      if (isSaving) el.classList.add('saving');
+      else el.classList.remove('saving');
+    }
+
+    function loadActiveProfile() {
+      const id = document.getElementById('profileIdInput').value.trim();
+      if (!id) return alert("Please enter a Profile ID.");
+      currentProfileId = id;
+      setSyncStatus("Loading...");
+
+      fetch(`${BASE_URL}?meta=false`, {
+        headers: { 'X-Master-Key': API_KEY }
+      })
+      .then(res => res.json())
+      .then(data => {
+        const profile = data[currentProfileId] || [];
+        document.getElementById('tablesContainer').innerHTML = '';
+        tableCounter = 0;
+
+        profile.forEach(item => {
+          addTable(item.name, item.group, item.day, currentProfileId);
+          const card = document.getElementById(`card-${tableCounter}`);
+          [3, 2, 1].forEach(tier => {
+            const row = card.querySelector(`tr[data-tier="${tier}"]`);
+            if (item.tiers && item.tiers[tier]) {
+              row.querySelector('.have-input').value = item.tiers[tier].have || 0;
+              row.querySelector('.craft-input').value = item.tiers[tier].craft || 0;
+            }
+          });
+          calculateCard(tableCounter);
+        });
+
+        setSyncStatus("Loaded");
+        updateMultiAccountsUI();
+      })
+      .catch(err => {
+        console.error(err);
+        setSyncStatus("Load Failed");
+      });
+    }
+
+    function saveToCloud() {
+      if (!currentProfileId) return alert("Please load or specify a Profile ID first.");
+      setSyncStatus("Saving...", true);
+
+      // Fetch master data first to retain other profile IDs
+      fetch(`${BASE_URL}?meta=false`, {
+        headers: { 'X-Master-Key': API_KEY }
+      })
+      .then(res => res.json())
+      .then(masterData => {
+        const currentTables = [];
+        document.querySelectorAll('.table-card').forEach(card => {
+          const id = card.id.replace('card-', '');
+          const name = card.querySelector('.card-title-input').value;
+          const group = card.getAttribute('data-group');
+          const day = card.getAttribute('data-day');
+
+          const tiers = {};
+          [3, 2, 1].forEach(tier => {
+            const row = card.querySelector(`tr[data-tier="${tier}"]`);
+            tiers[tier] = {
+              have: parseInt(row.querySelector('.have-input').value) || 0,
+              craft: parseInt(row.querySelector('.craft-input').value) || 0
+            };
+          });
+
+          currentTables.push({ name, group, day, tiers });
+        });
+
+        masterData[currentProfileId] = currentTables;
+
+        return fetch(BASE_URL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY
+          },
+          body: JSON.stringify(masterData)
+        });
+      })
+      .then(res => res.json())
+      .then(() => {
+        setSyncStatus("Saved");
+      })
+      .catch(err => {
+        console.error(err);
+        setSyncStatus("Save Failed");
+      });
+    }
+
+    function addToMultiAccounts() {
+      const id = document.getElementById('profileIdInput').value.trim();
+      if (!id) return alert("Enter a valid Profile ID");
+      if (!activeProfiles.has(id)) {
+        activeProfiles.set(id, true);
+        updateMultiAccountsUI();
+      }
+    }
+
+    function updateMultiAccountsUI() {
+      const bar = document.getElementById('multiAccountsBar');
+      const list = document.getElementById('accountsList');
+      if (activeProfiles.size === 0) {
+        bar.classList.remove('visible');
+        return;
+      }
+
+      bar.classList.add('visible');
+      let html = '';
+      activeProfiles.forEach((_, profId) => {
+        const isActive = profId === currentProfileId;
+        html += `
+          <div class="account-chip ${isActive ? 'active' : ''}">
+            <span>${profId}</span>
+            <button onclick="removeProfileFromView('${profId}')">×</button>
+          </div>`;
+      });
+      list.innerHTML = html;
+    }
+
+    function removeProfileFromView(profId) {
+      activeProfiles.delete(profId);
+      updateMultiAccountsUI();
+    }
+  </script>
+</body>
+</html>
